@@ -108,7 +108,7 @@ def create_dashboard(csv_file):
                 html.H2("Sensor Information", style={'fontFamily': 'Arial, sans-serif'}),
                 *[html.P([html.B(f"{key.replace('_', ' ').title()}: "), str(value)], 
                           style={'margin': '5px', 'fontFamily': 'Arial, sans-serif'}) for key, value in metadata.items()]
-            ], style={'flex': '1', 'padding': '10px'}),
+            ], style={'flex': '1', 'padding': '10px', 'border-right': '2px solid #ddd', 'margin-right': '15px'}),
 
             dcc.Graph(
                 id='sensor-location',
@@ -121,15 +121,15 @@ def create_dashboard(csv_file):
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)'
                 ),
-                style={'flex': '1', 'height': '300px', 'width': '100%', 'backgroundColor': 'transparent'}
+                style={'flex': '1', 'height': '300px', 'width': '100%', 'backgroundColor': 'transparent', 'border-right': '2px solid #ddd', 'padding-right': '15px'}
             ),
 
             html.Div([
-                html.H3("Key Metrics", style={'fontFamily': 'Arial, sans-serif'}),
+                html.H2("Key Metrics", style={'fontFamily': 'Arial, sans-serif'}),
                 *[html.P([html.B(label), f": {value}"], 
                           style={'margin': '5px', 'fontFamily': 'Arial, sans-serif'}) 
                   for label, value in key_metrics.items()]
-            ], style={'flex': '1', 'padding': '10px'})
+            ], style={'flex': '1', 'padding': '10px', 'margin-left': '15px'})
         ], style={
             'display': 'flex', 'border': '1px solid #ddd', 'border-radius': '10px', 
             'padding': '20px', 'margin-bottom': '20px', 'backgroundColor': '#f9f9f9'
