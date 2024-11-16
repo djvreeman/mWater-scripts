@@ -1,0 +1,89 @@
+/* Default styles for sections */
+.dashboard-container {
+    display: flex;
+    flex-direction: row; /* Default to row for desktop and landscape */
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: #f9f9f9;
+    justify-content: space-between; /* Distribute sections evenly */
+}
+
+.dashboard-section {
+    flex: 1;
+    margin: 0 10px;
+    display: flex;
+    flex-direction: column;
+    /* border-right: 2px solid #ddd; /* Default border-right for desktop */
+}
+
+/* Responsive adjustments for mobile */
+@media (max-width: 768px) {
+    .dashboard-container {
+        flex-direction: column; /* Stack sections vertically for mobile */
+    }
+    .dashboard-section {
+        margin: 10px 0; /* Adjust margins for vertical stacking */
+        border-right: none; /* Remove border-right in mobile view */
+    }
+}
+/* General application container */
+.app-container {
+    padding: 20px;
+    background-color: #f9f9f9;
+    font-family: Arial, sans-serif;
+}
+
+/* Title styling */
+.main-title {
+    font-size: 2rem;
+    color: #333;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+/* Sensor information styling */
+.sensor-info {
+    flex: 1;
+    padding: 10px;
+    border-right: 2px solid #ddd;
+    margin-right: 15px;
+}
+
+/* Graph styling */
+.graph-style {
+    flex: 1;
+    height: 300px;
+    width: 100%;
+    background-color: transparent;
+    border-right: 2px solid #ddd;
+    padding-right: 15px;
+}
+
+/* Key metrics styling */
+.key-metrics {
+    flex: 1;
+    padding: 10px;
+    margin-left: 15px;
+}
+
+/* Warning box */
+.warning-box {
+    border: 1px solid red;
+    border-radius: 10px;
+    padding: 10px;
+    background-color: #ffe6e6;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Graph layout */
+.graph-container {
+    display: flex;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: #f9f9f9;
+}

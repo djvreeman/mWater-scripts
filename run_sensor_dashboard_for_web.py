@@ -1,5 +1,5 @@
 """
-Script Name: create-sensor-dashboard.py
+Script Name: run_sensor_dashboard_for_web.py
 
 Purpose:
 This script generates an interactive dashboard to visualize water usage sensor data. It processes data from a CSV file, extracts key insights, and provides several visualizations to help monitor water usage and sensor activity over time.
@@ -50,13 +50,33 @@ Notes:
 - This script assumes a consistent schema in the input CSV file.
 """
 
+import os
+import json
 import pandas as pd
 import pytz
 from timezonefinder import TimezoneFinder
 import dash
-from dash import dcc, html
+from dash import dcc, html, Input, Output, State
 import plotly.express as px
-import argparse
+
+# Directory containing sensor data files
+DATA_DIR = "/var/www/sensor-data"
+
+# Define the path to the configuration file
+CONFIG_PATH = os.path.join(DATA_DIR ,"config", "dashboard-config.json")
+
+def load_passwords(config_path):
+    """Load passwords from a JSON configuration file."""
+    try:
+        with open(config_path, "r") as file:
+            config = json.load(file)
+            return config.get("passwords", [])
+    except FileNotFoundError:
+        print(f"Error: Configuration file '{config_path}' not found.")
+        return []
+    except json.JSONDecodeError:
+        print(f"Error: Invalid JSON format in '{config_path}'.")
+        return []
 
 def load_data(csv_file):
     """Load and preprocess sensor data from CSV."""
@@ -116,6 +136,7 @@ def determine_season(month):
         return 'Cool Dry (Jun-Aug)'
     else:
         return 'Short Rains (Sep-Nov)'
+
 def calculate_key_metrics(df):
     """Calculate key metrics for display."""
     recent_day_data = df[df['date'] == df['date'].max()]
@@ -144,14 +165,9 @@ def calculate_seasonal_averages(df):
     avg_volume_per_season.rename(columns={'liters': 'avg_daily_volume'}, inplace=True)
     return avg_volume_per_season
 
-def create_dashboard(csv_file):
-    df, metadata, timezone_str = load_data(csv_file)
-    key_metrics = calculate_key_metrics(df)
-    seasonal_averages = calculate_seasonal_averages(df)
-
-    app = dash.Dash(__name__)
-
-    app.layout = html.Div([
+def create_dashboard_layout(df, metadata, timezone_str, key_metrics, seasonal_averages):
+    """Create the layout for the sensor dashboard."""
+    return html.Div([
         html.H1(metadata['water_point_name'], style={'textAlign': 'center', 'fontFamily': 'Arial, sans-serif'}),
 
         # Combined Sensor Information, Map, and Key Metrics Section
@@ -160,7 +176,7 @@ def create_dashboard(csv_file):
                 html.H2("Sensor Information", style={'fontFamily': 'Arial, sans-serif'}),
                 *[html.P([html.B(f"{key.replace('_', ' ').title()}: "), str(value)], 
                           style={'margin': '5px', 'fontFamily': 'Arial, sans-serif'}) for key, value in metadata.items()]
-            ], style={'flex': '1', 'padding': '10px', 'border-right': '2px solid #ddd', 'margin-right': '15px'}),
+            ], className="dashboard-section"),
 
             dcc.Graph(
                 id='sensor-location',
@@ -173,7 +189,8 @@ def create_dashboard(csv_file):
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)'
                 ),
-                style={'flex': '1', 'height': '300px', 'width': '100%', 'backgroundColor': 'transparent', 'border-right': '2px solid #ddd', 'padding-right': '15px'}
+                style={'height': '300px', 'backgroundColor': 'transparent', 'padding-right': '15px'}
+
             ),
 
             html.Div([
@@ -181,11 +198,9 @@ def create_dashboard(csv_file):
                 *[html.P([html.B(label), f": {value}"], 
                           style={'margin': '5px', 'fontFamily': 'Arial, sans-serif'}) 
                   for label, value in key_metrics.items()]
-            ], style={'flex': '1', 'padding': '10px', 'margin-left': '15px'})
-        ], style={
-            'display': 'flex', 'border': '1px solid #ddd', 'border-radius': '10px', 
-            'padding': '20px', 'margin-bottom': '20px', 'backgroundColor': '#f9f9f9'
-        }),
+            ], className="dashboard-section")
+        ], className="dashboard-container"),  # Add class for responsive styling
+
         # Red Flag Events Warning Box
         html.Div([
             html.P(f"Last Reading: {df['local_datetime'].max()}", style={
@@ -238,16 +253,168 @@ def create_dashboard(csv_file):
                 labels={'season': 'Season', 'avg_daily_volume': 'Avg Daily Volume (Liters)'}
             ).update_traces(marker_color='rgb(229, 142, 45)')
         )
-    ], style={'padding': '20px'})
+    ])
 
-    app.run_server(debug=True)
+# Dash App Setup
+app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=['assets/style.css'])
+server = app.server  # Flask app exposed for WSGI
 
-def main():
-    parser = argparse.ArgumentParser(description="Create a dashboard for sensor data visualization.")
-    parser.add_argument("-f", "--csv_file", required=True, help="Path to the CSV file")
-    args = parser.parse_args()
+def get_available_sensors():
+    """List available sensor IDs based on file names."""
+    files = [f for f in os.listdir(DATA_DIR) if f.startswith("sensor-") and f.endswith("-hourly-logs.csv")]
+    return [f.split('-')[1] for f in files]
 
-    create_dashboard(args.csv_file)
+def get_sensor_metadata():
+    """Retrieve metadata for all available sensors."""
+    sensor_ids = get_available_sensors()
+    metadata_list = []
+    for sensor_id in sensor_ids:
+        file_path = os.path.join(DATA_DIR, f"sensor-{sensor_id}-hourly-logs.csv")
+        if os.path.exists(file_path):
+            df = pd.read_csv(file_path, nrows=2000)  # Read a limited number of rows for metadata
+            metadata = extract_metadata(df)
+            metadata['sensor_id'] = sensor_id  # Add sensor ID to metadata
+            metadata_list.append(metadata)
+    return metadata_list
+
+# Login layout
+def login_layout():
+    return html.Div([
+        html.H1("Sensor Dashboard Login", style={'textAlign': 'center', 'fontFamily': 'Arial, sans-serif'}),
+        html.Div([
+            dcc.Input(
+                id="password-input",
+                type="password",
+                placeholder="Enter your password",
+                style={
+                    'width': '70%',  # Increased width
+                    'height': '40px',  # Increased height
+                    'margin': '10px auto',
+                    'display': 'block',
+                    'fontFamily': 'Arial, sans-serif',
+                    'fontSize': '16px',  # Larger font
+                    'padding': '5px'
+                }
+            ),
+            html.Button(
+                "Submit", 
+                id="login-button", 
+                n_clicks=0,
+                style={'display': 'block', 'margin': '10px auto', 'fontSize': '16px', 'padding': '10px 20px'}
+            ),
+            html.Div(
+                id="login-message", 
+                style={'textAlign': 'center', 'color': 'red', 'fontFamily': 'Arial, sans-serif'}
+            )
+        ], style={'textAlign': 'center'})
+    ])
+
+# Landing Page Layout
+def landing_page_layout():
+    sensors = get_sensor_metadata()
+
+    return html.Div([
+        html.H1("Sensor Dashboard", style={'textAlign': 'center', 'fontFamily': 'Arial, sans-serif'}),
+
+        # Center the dropdown while keeping text left-aligned
+        html.Div([
+            dcc.Dropdown(
+                id='sensor-dropdown',
+                options=[
+                    {
+                        'label': f"{sensor.get('water_point_name', 'Unknown')} (Sensor {sensor.get('sensor_id', 'Unknown')})", 
+                        'value': sensor.get('sensor_id', 'Unknown')
+                    }
+                    for sensor in sensors
+                ],
+                placeholder="Select a sensor...",
+                style={
+                    'fontFamily': 'Arial, sans-serif',
+                    'width': '80%',  # Adjust width as needed
+                    'margin': '0 auto',  # Centers the dropdown control
+                    'padding': '5px',  # Padding for aesthetics
+                    'textAlign': 'left',  # Keeps the selected text left-aligned
+                }
+            ),
+        dcc.Loading(  # Wrap the Go button in a loading spinner
+                        id="loading-go",
+                        type="circle",
+                        children=html.Button(
+                            "Go",
+                            id="go-button",
+                            n_clicks=0,
+                            style={
+                                'display': 'block', 
+                                'margin': '10px auto',  # Center the button
+                                'fontSize': '16px', 
+                                'padding': '10px 20px'
+                            },
+                            disabled=True  # Initially disabled
+                        )
+                    )
+                ], style={'textAlign': 'center', 'marginBottom': '20px'}),
+            ])
+
+@app.callback(
+    Output("go-button", "disabled"),
+    [Input("sensor-dropdown", "value")]
+)
+def enable_go_button(sensor_selection):
+    return sensor_selection is None  # Disable if no sensor is selected
+
+@app.callback(
+    Output("url", "pathname"),
+    [Input("go-button", "n_clicks")],  # Triggered by button clicks
+    [State("sensor-dropdown", "value")],  # Get the selected sensor ID
+    prevent_initial_call=True  # Only trigger after an actual click
+)
+def navigate_to_dashboard(n_clicks, sensor_id):
+    if n_clicks and sensor_id:
+        return f"/sensor/{sensor_id}"  # Navigate to the selected sensor's dashboard
+    return "/"  # Fallback to home if no selection
+
+# Main Layout
+app.layout = html.Div([
+    dcc.Store(id="auth-state", storage_type="session", data={"authenticated": False}),
+    dcc.Location(id='url', refresh=False),
+    html.Div(id='page-content')
+])
+
+@app.callback(
+    [Output("auth-state", "data"), Output("login-message", "children")],
+    [Input("login-button", "n_clicks"), Input("password-input", "n_submit")],  # Listen for Enter key with `n_submit`
+    [State("password-input", "value"), State("auth-state", "data")]
+)
+def authenticate_user(n_clicks, n_submit, password, auth_state):
+    """Authenticate user based on password input."""
+    # Load passwords from the configuration file
+    passwords = load_passwords(CONFIG_PATH)
+
+    if (n_clicks or n_submit) and password in passwords:  # Check against list of passwords
+        auth_state["authenticated"] = True
+        return auth_state, ""
+    elif n_clicks or n_submit:
+        return auth_state, "Incorrect password. Please try again."
+    return auth_state, ""
+
+@app.callback(
+    Output("page-content", "children"),
+    [Input("auth-state", "data"), Input("url", "pathname")]
+)
+def render_page(auth_state, pathname):
+    if not auth_state.get("authenticated", False):
+        return login_layout()  # Show login page if not authenticated
+    if pathname == "/":
+        return landing_page_layout()
+    elif pathname.startswith("/sensor/"):
+        sensor_id = pathname.split("/")[-1]
+        csv_file = os.path.join(DATA_DIR, f"sensor-{sensor_id}-hourly-logs.csv")
+        if os.path.exists(csv_file):
+            df, metadata, timezone_str = load_data(csv_file)
+            key_metrics = calculate_key_metrics(df)
+            seasonal_averages = calculate_seasonal_averages(df)
+            return create_dashboard_layout(df, metadata, timezone_str, key_metrics, seasonal_averages)
+    return html.Div([html.H2("404: Page not found")])
 
 if __name__ == "__main__":
-    main()
+    app.run_server(debug=True)

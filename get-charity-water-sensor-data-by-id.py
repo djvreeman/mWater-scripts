@@ -1,3 +1,46 @@
+"""
+Script Name: get-charity-water-sensor-data-by-id.py
+
+Purpose:
+This script fetches hourly sensor data from the charity: water API for a specified sensor identified by its QR code. 
+The data is fetched starting from a given datetime, paginated as needed, and saved into a CSV file. 
+
+Functionality:
+1. Loads API credentials (API key and client ID) from a JSON configuration file.
+2. Constructs the appropriate API request based on the QR code and start datetime.
+3. Iterates through paginated responses to collect all data.
+4. Saves the data to a CSV file in a specified directory.
+
+Usage:
+Run the script from the command line with the following required arguments:
+    -q, --qr_code: The QR code of the sensor to fetch data for.
+    -s, --start_datetime: The start datetime for data collection in the format 'YYYY-MM-DD HH:MM:SS'.
+    -d, --output_dir: The directory where the resulting CSV file will be saved.
+
+Example:
+    python get-charity-water-sensor-data-by-id.py -q 910401 -s "2024-01-01 00:00:01" -d "./output"
+
+Inputs:
+- JSON Configuration File (config/charity-water-config.json): Contains the API key and client ID required for authentication.
+- Command-line arguments:
+  - QR code of the sensor
+  - Start datetime
+  - Output directory
+
+Outputs:
+- CSV File: Contains all the fetched hourly logs for the sensor, saved with a descriptive filename that includes the QR code and start datetime.
+
+Dependencies:
+- Python 3.x
+- Libraries: requests, pandas, argparse, os, json, datetime
+
+Author: Daniel J. Vreeman, PT, DPT, MS, FACMI, FIAHSI
+
+Notes:
+- Ensure the configuration file is present at the specified path and contains valid API credentials.
+- Make sure the output directory exists before running the script.
+"""
+
 import requests
 import pandas as pd
 import json
