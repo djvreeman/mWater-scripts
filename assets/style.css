@@ -1,89 +1,77 @@
-/* Default styles for sections */
-.dashboard-container {
+/* Apply default font-family for the entire dashboard */
+body {
+    font-family: Arial, sans-serif; /* Generic font-family for everything */
+}
+
+/* General styling for dashboard layout */
+.dashboard-row {
     display: flex;
-    flex-direction: row; /* Default to row for desktop and landscape */
-    border: 1px solid #ddd;
-    border-radius: 10px;
-    padding: 20px;
+    flex-wrap: wrap; /* Allow items to wrap onto the next row */
+    justify-content: space-between; /* Add spacing between sections */
+    gap: 20px; /* Space between subsections */
+    padding: 10px; /* Padding for the entire row */
+    border: 1px solid #ccc; /* Optional: border for the entire row */
+    border-radius: 5px; /* Rounded corners for the row */
+    background-color: #f9f9f9; /* Subtle background for the row */
+    box-sizing: border-box; /* Ensure padding and border are included in row dimensions */
     margin-bottom: 20px;
-    background-color: #f9f9f9;
-    justify-content: space-between; /* Distribute sections evenly */
 }
 
-.dashboard-section {
-    flex: 1;
-    margin: 0 10px;
-    display: flex;
-    flex-direction: column;
-    /* border-right: 2px solid #ddd; /* Default border-right for desktop */
+/* Dashboard subsection styling */
+.dashboard-subsection {
+    flex: 1 1 calc(50% - 20px); /* Take up 50% of the row width on desktop */
+    box-sizing: border-box; /* Include padding and borders in width calculations */
+    padding: 10px; /* Space inside subsections */
 }
 
-/* Responsive adjustments for mobile */
+/* Fixed height for map section */
+.fixed-height {
+    height: 400px; /* Consistent height for map */
+    overflow: hidden; /* Prevent overflow */
+}
+
+/* Change the slider track color */
+.rc-slider-track {
+    background-color: rgb(229, 142, 45);
+}
+
+/* Change the slider handle (circle) color */
+.rc-slider-handle {
+    border-color: rgb(229, 142, 45);
+    background-color: rgb(229, 142, 45); /* Ensure handle fill matches border */
+}
+
+/* Change the slider rail (background line) color */
+.rc-slider-rail {
+    background-color: rgb(229, 142, 45);  /* Optional: lighter for contrast */
+}
+
+/* Style the unselected dots (marks) */
+.rc-slider-dot {
+    border-color: rgb(229, 142, 45); /* Change border color */
+    background-color: #fff; /* Optional: white background for contrast */
+    box-shadow: none; /* Remove default shadow */
+}
+
+/* Style selected dots */
+.rc-slider-dot-active {
+    background-color: rgb(229, 142, 45); /* Match active dot with handle */
+    border-color: rgb(229, 142, 45);
+}
+
+/* Style the text for slider marks */
+.rc-slider-mark-text {
+    color: rgb(229, 142, 45); /* Change text color for marks */
+    font-family: Arial, sans-serif; /* Ensure consistent font */
+}
+
+/* Responsive design for smaller screens */
 @media (max-width: 768px) {
-    .dashboard-container {
-        flex-direction: column; /* Stack sections vertically for mobile */
+    .dashboard-subsection {
+        flex: 1 1 100%; /* Full width for each section on mobile */
     }
-    .dashboard-section {
-        margin: 10px 0; /* Adjust margins for vertical stacking */
-        border-right: none; /* Remove border-right in mobile view */
+
+    .dashboard-row {
+        gap: 10px; /* Reduce gap between subsections on mobile */
     }
-}
-/* General application container */
-.app-container {
-    padding: 20px;
-    background-color: #f9f9f9;
-    font-family: Arial, sans-serif;
-}
-
-/* Title styling */
-.main-title {
-    font-size: 2rem;
-    color: #333;
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-/* Sensor information styling */
-.sensor-info {
-    flex: 1;
-    padding: 10px;
-    border-right: 2px solid #ddd;
-    margin-right: 15px;
-}
-
-/* Graph styling */
-.graph-style {
-    flex: 1;
-    height: 300px;
-    width: 100%;
-    background-color: transparent;
-    border-right: 2px solid #ddd;
-    padding-right: 15px;
-}
-
-/* Key metrics styling */
-.key-metrics {
-    flex: 1;
-    padding: 10px;
-    margin-left: 15px;
-}
-
-/* Warning box */
-.warning-box {
-    border: 1px solid red;
-    border-radius: 10px;
-    padding: 10px;
-    background-color: #ffe6e6;
-    margin-bottom: 20px;
-    text-align: center;
-}
-
-/* Graph layout */
-.graph-container {
-    display: flex;
-    border: 1px solid #ddd;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 20px;
-    background-color: #f9f9f9;
 }

@@ -60,7 +60,8 @@ def construct_output_file(output_dir, qr_code, start_datetime):
     """Construct the output file name."""
     # Replace characters that are not suitable for file names
     safe_datetime = start_datetime.replace(":", "-").replace(" ", "-")
-    filename = f"sensor-{qr_code}-hourly-logs-start-{safe_datetime}.csv"
+    #filename = f"sensor-{qr_code}-hourly-logs-start-{safe_datetime}.csv"
+    filename = f"sensor-{qr_code}-hourly-logs.csv"
     return os.path.join(output_dir, filename)
 
 def fetch_sensor_data(api_key, client_id, qr_code, start_datetime, output_file):

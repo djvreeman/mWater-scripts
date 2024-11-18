@@ -58,12 +58,27 @@ from timezonefinder import TimezoneFinder
 import dash
 from dash import dcc, html, Input, Output, State
 import plotly.express as px
+import glob
+import logging
+from natsort import natsorted
 
 # Directory containing sensor data files
 DATA_DIR = "/var/www/sensor-data"
 
 # Define the path to the configuration file
 CONFIG_PATH = os.path.join(DATA_DIR ,"config", "dashboard-config.json")
+
+# Configure logging
+logging.basicConfig(
+    filename=os.path.join(DATA_DIR ,"log", "water_sensor_dashboard.log"),  # Path to your log file
+    level=logging.DEBUG,  # Set the logging level to DEBUG
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# Example: Log that the server started
+logging.info("Sensor Dashboard server started.")
+
+### MAIN SCRIPT HERE ###
 
 def load_passwords(config_path):
     """Load passwords from a JSON configuration file."""
@@ -99,6 +114,11 @@ def load_data(csv_file):
     local_tz = pytz.timezone(timezone_str)
     df['local_datetime'] = df['gmt_datetime'].dt.tz_convert(local_tz)
 
+    # Debugging: Print a few rows for validation
+    logging.debug(f"Timezone: {timezone_str}")
+    logging.debug(df[['gmt_datetime', 'local_datetime']].head())  # Corrected line
+    logging.debug("Conversion to local time completed.")
+
     # Extract date, month, and hour in local time
     df['date'] = df['local_datetime'].dt.date
     df['month'] = df['local_datetime'].dt.month
@@ -109,16 +129,51 @@ def load_data(csv_file):
 
     return df, metadata, timezone_str
 
+def load_images(sensor_id):
+    """Load images from the data directory for the given sensor_id."""
+    image_dir = os.path.join(DATA_DIR, "images", sensor_id)
+    image_files = glob.glob(os.path.join(image_dir, "*.jpg"))
+    # Sort files by filename
+    image_files = sorted(image_files)
+    return image_files
+
+def create_carousel_images(sensor_id):
+    """Create the initial structure for the carousel images using URLs."""
+    image_dir = os.path.join(DATA_DIR, "images", sensor_id)
+    image_files = natsorted(glob.glob(os.path.join(image_dir, "*.jpg")))  
+    return [
+        html.Div(
+            html.Img(
+                src=f"/images/{sensor_id}/{os.path.basename(image)}",  # Use relative URL
+                style={'width': '100%', 'height': 'auto'}
+            ),
+            style={'display': 'block' if idx == 0 else 'none'}  # Only the first image is visible
+        )
+        for idx, image in enumerate(image_files)
+    ]
+
 def extract_metadata(df):
     """Extract robust metadata by scanning the dataset."""
     valid_lat_lon = df[['latitude', 'longitude']].dropna().iloc[0] if not df[['latitude', 'longitude']].dropna().empty else {'latitude': 0, 'longitude': 0}
+
+    # Define a helper function to format the water_point_name
+    def format_water_point_name(name):
+        if not isinstance(name, str):  # Handle non-string cases
+            return 'Unknown'
+        # Ensure space after a period and convert to title case
+        formatted_name = name.replace('.', '. ').replace('  ', ' ').title()
+        return formatted_name
 
     metadata = {
         'latitude': valid_lat_lon['latitude'],
         'longitude': valid_lat_lon['longitude'],
         'community_name': df['community_name'].mode().values[0] if not df['community_name'].mode().empty else 'Unknown',
         'service_provider': df['service_provider'].mode().values[0] if not df['service_provider'].mode().empty else 'Unknown',
-        'water_point_name': df['water_point_name'].mode().values[0] if not df['water_point_name'].mode().empty else 'Unknown',
+        'water_point_name': format_water_point_name(
+            df['water_point_name'].mode().values[0]
+            if not df['water_point_name'].mode().empty
+            else 'Unknown'
+        ),
         'installation_date': df['installation_date'].mode().values[0] if 'installation_date' in df and not df['installation_date'].mode().empty else 'Unknown',
         'model': df['model'].mode().values[0] if not df['model'].mode().empty else 'Unknown',
         'qr_code': df['qr_code'].mode().values[0] if not df['qr_code'].mode().empty else 'Unknown'
@@ -161,45 +216,75 @@ def calculate_seasonal_averages(df):
     days_per_season = season_data.groupby('season')['date'].nunique()
     complete_seasons = days_per_season[days_per_season >= 85].index
     season_data = season_data[season_data['season'].isin(complete_seasons)]
+    
+    # Calculate average daily volume per season
     avg_volume_per_season = season_data.groupby('season')['liters'].mean().reset_index()
     avg_volume_per_season.rename(columns={'liters': 'avg_daily_volume'}, inplace=True)
+    
+    # Define custom order for seasons
+    season_order = ['Hot Dry (Dec-Feb)', 'Long Rains (Mar-May)', 'Cool Dry (Jun-Aug)', 'Short Rains (Sep-Nov)']
+    avg_volume_per_season['season'] = pd.Categorical(avg_volume_per_season['season'], categories=season_order, ordered=True)
+    
+    # Sort by the custom order
+    avg_volume_per_season.sort_values('season', inplace=True)
+    
     return avg_volume_per_season
 
-def create_dashboard_layout(df, metadata, timezone_str, key_metrics, seasonal_averages):
+def create_dashboard_layout(df, metadata, timezone_str, key_metrics, seasonal_averages, sensor_id):
     """Create the layout for the sensor dashboard."""
+    # Load carousel images
+    image_files = load_images(sensor_id)
+    image_elements = create_carousel_images(sensor_id)
+
     return html.Div([
-        html.H1(metadata['water_point_name'], style={'textAlign': 'center', 'fontFamily': 'Arial, sans-serif'}),
+        # Title
+        html.H1(metadata['water_point_name'], className="main-title"),
 
-        # Combined Sensor Information, Map, and Key Metrics Section
+        # Dashboard row containing 4 subsections
         html.Div([
+            # Sensor Information
             html.Div([
-                html.H2("Sensor Information", style={'fontFamily': 'Arial, sans-serif'}),
-                *[html.P([html.B(f"{key.replace('_', ' ').title()}: "), str(value)], 
-                          style={'margin': '5px', 'fontFamily': 'Arial, sans-serif'}) for key, value in metadata.items()]
-            ], className="dashboard-section"),
+                html.H2("Sensor Information"),
+                *[html.P([html.B(f"{key.replace('_', ' ').title()}: "), str(value)]) for key, value in metadata.items()]
+            ], className="dashboard-subsection"),
 
-            dcc.Graph(
-                id='sensor-location',
-                figure=px.scatter_mapbox(
-                    df, lat='latitude', lon='longitude',
-                    hover_name='community_name', zoom=10,
-                    mapbox_style="open-street-map"
-                ).update_layout(
-                    margin=dict(l=0, r=0, t=0, b=0),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
-                ),
-                style={'height': '300px', 'backgroundColor': 'transparent', 'padding-right': '15px'}
-
-            ),
-
+            # Location (Map Section) with fixed height
             html.Div([
-                html.H2("Key Metrics", style={'fontFamily': 'Arial, sans-serif'}),
-                *[html.P([html.B(label), f": {value}"], 
-                          style={'margin': '5px', 'fontFamily': 'Arial, sans-serif'}) 
-                  for label, value in key_metrics.items()]
-            ], className="dashboard-section")
-        ], className="dashboard-container"),  # Add class for responsive styling
+                html.H2("Location"),
+                dcc.Graph(
+                    id='sensor-location',
+                    figure=px.scatter_mapbox(
+                        df, lat='latitude', lon='longitude',
+                        hover_name='community_name', zoom=10,
+                        mapbox_style="open-street-map"
+                    ).update_layout(
+                        margin=dict(l=0, r=0, t=0, b=0),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                )
+            ], className="dashboard-subsection fixed-height"),
+
+            # Key Metrics
+            html.Div([
+                html.H2("Key Metrics"),
+                *[html.P([html.B(label), f": {value}"]) for label, value in key_metrics.items()]
+            ], className="dashboard-subsection"),
+
+            # Sensor Images
+            html.Div([
+                html.H2("Images"),
+                html.Div(image_elements, id='carousel-images'),
+                dcc.Slider(
+                    id='carousel-slider',
+                    min=0,
+                    max=len(image_files) - 1,
+                    step=1,
+                    marks={i: f"{i+1}" for i in range(len(image_files))},
+                    value=0
+                )
+            ], className="dashboard-subsection"),
+        ], className="dashboard-row"),
 
         # Red Flag Events Warning Box
         html.Div([
@@ -210,15 +295,15 @@ def create_dashboard_layout(df, metadata, timezone_str, key_metrics, seasonal_av
                 'color': 'red', 'margin': '0', 'fontFamily': 'Arial, sans-serif'
             })
         ], style={
-            'border': '1px solid red', 'border-radius': '10px', 'padding': '10px', 
-            'backgroundColor': '#ffe6e6', 'margin-bottom': '20px', 'textAlign': 'center'
+            'border': '1px solid red', 'border-radius': '10px', 'padding': '10px',
+            'backgroundColor': '#ffe6e6', 'marginBottom': '20px', 'textAlign': 'center'
         }),
 
         # Daily Water Flow Plot
         dcc.Graph(
             id='daily-water-flow',
             figure=px.line(
-                df.groupby('date')['liters'].sum().reset_index(), 
+                df.groupby('date')['liters'].sum().reset_index(),
                 x='date', y='liters', title='Daily Water Flow'
             ).update_traces(line_color='rgb(229, 142, 45)').update_layout(xaxis_showgrid=False)
         ),
@@ -248,7 +333,9 @@ def create_dashboard_layout(df, metadata, timezone_str, key_metrics, seasonal_av
         dcc.Graph(
             id='seasonal-usage',
             figure=px.bar(
-                seasonal_averages, x='season', y='avg_daily_volume',
+                seasonal_averages,
+                x='season',
+                y='avg_daily_volume',
                 title='Average Daily Water Usage per Season',
                 labels={'season': 'Season', 'avg_daily_volume': 'Avg Daily Volume (Liters)'}
             ).update_traces(marker_color='rgb(229, 142, 45)')
@@ -413,8 +500,20 @@ def render_page(auth_state, pathname):
             df, metadata, timezone_str = load_data(csv_file)
             key_metrics = calculate_key_metrics(df)
             seasonal_averages = calculate_seasonal_averages(df)
-            return create_dashboard_layout(df, metadata, timezone_str, key_metrics, seasonal_averages)
+            return create_dashboard_layout(df, metadata, timezone_str, key_metrics, seasonal_averages, sensor_id)
     return html.Div([html.H2("404: Page not found")])
+
+@app.callback(
+    Output('carousel-images', 'children'),
+    [Input('carousel-slider', 'value')],
+    [State('carousel-images', 'children')]
+)
+def update_carousel(selected_idx, children):
+    """Update the visible image in the carousel based on the slider."""
+    print(f"Slider changed to index: {selected_idx}")  # Debug statement
+    for idx, child in enumerate(children):
+        child['props']['style']['display'] = 'block' if idx == selected_idx else 'none'
+    return children
 
 if __name__ == "__main__":
     app.run_server(debug=True)
